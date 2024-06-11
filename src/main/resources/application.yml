@@ -1,0 +1,3 @@
+spring:
+    application:
+        name: Checklist API - SpringBoot 3 - Java 21

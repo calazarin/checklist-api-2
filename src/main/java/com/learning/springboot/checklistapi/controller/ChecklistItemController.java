@@ -1,0 +1,130 @@
+package com.learning.springboot.checklistapi.controller;
+
+import com.learning.springboot.checklistapi.dto.CategoryDTO;
+import com.learning.springboot.checklistapi.dto.ChecklistItemDTO;
+import com.learning.springboot.checklistapi.dto.NewResourceDTO;
+import com.learning.springboot.checklistapi.dto.UpdateStatusDTO;
+import com.learning.springboot.checklistapi.entity.ChecklistItemEntity;
+import com.learning.springboot.checklistapi.exception.ExceptionalResponse;
+import com.learning.springboot.checklistapi.service.ChecklistItemService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import javax.validation.ValidationException;
+import java.util.List;
+import java.util.stream.StreamSupport;
+
+import static java.util.stream.Collectors.toList;
+
+@RestController
+@RequestMapping("/v1/api/checklist-items")
+public class ChecklistItemController {
+
+    private final ChecklistItemService checklistItemService;
+
+    public ChecklistItemController(ChecklistItemService checklistItemService) {
+        this.checklistItemService = checklistItemService;
+    }
+
+    @Operation(description = "Retrieves all checklist items")
+    @ApiResponses(value = {
+          @ApiResponse(responseCode = "200", description = "Checklist item list",
+                  content = @Content(mediaType = "application/json",
+                  array = @ArraySchema(schema = @Schema(implementation = ChecklistItemDTO.class)))
+          )
+    })
+    @GetMapping(value = "", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<List<ChecklistItemDTO>> getAllChecklistItems() {
+
+        List<ChecklistItemDTO> resp = StreamSupport.stream(this.checklistItemService.findAllChecklistItems()
+                        .spliterator(), false)
+                .map(ChecklistItemDTO::toDTO)
+                .collect(toList());
+
+        return new ResponseEntity<>(resp, HttpStatus.OK);
+    }
+
+    @Operation(description = "Inserts a new checklist item")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Created new checklist item",
+                    content = @Content(schema = @Schema(anyOf = {NewResourceDTO.class}))),
+            @ApiResponse(responseCode = "422", description = "Provided category guid cannot be empty or null",
+                    content = @Content(schema = @Schema(anyOf = {ExceptionalResponse.class}))),
+            @ApiResponse(responseCode = "404", description = "Provided category does not exist",
+                    content = @Content(schema = @Schema(anyOf = {ExceptionalResponse.class})))
+    })
+    @PostMapping(value = "", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<NewResourceDTO> createNewChecklistItem(@RequestBody ChecklistItemDTO checklistItemDTO) {
+
+        if(checklistItemDTO.getCategory() == null) {
+            throw new ValidationException("Category cannot be null");
+        }
+
+        ChecklistItemEntity createdChecklistItem = this.checklistItemService.addNewChecklistItem(checklistItemDTO.getDescription(),
+                checklistItemDTO.getIsCompleted(), checklistItemDTO.getDeadline(), checklistItemDTO.getCategory().getGuid());
+
+        return new ResponseEntity<>(new NewResourceDTO(createdChecklistItem.getGuid()), HttpStatus.CREATED);
+    }
+
+    @Operation(description = "Updates checklist item")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Item updated"),
+            @ApiResponse(responseCode = "422", description = "Provided checklist item guid cannot be empty or null",
+                    content = @Content(schema = @Schema(anyOf = {ExceptionalResponse.class})))
+    })
+    @PutMapping(value = "", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Void> updateChecklistItem(@RequestBody ChecklistItemDTO checklistItemDTO) {
+
+        if(!StringUtils.hasText(checklistItemDTO.getGuid())){
+            throw new ValidationException("Checklist item guid cannot be null or empty");
+        }
+        this.checklistItemService.updateChecklistItem(checklistItemDTO.getGuid(),
+                checklistItemDTO.getDescription(), checklistItemDTO.getIsCompleted(),
+                checklistItemDTO.getDeadline(), checklistItemDTO.getCategory() != null ?
+                        checklistItemDTO.getCategory().getGuid() : null);
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    }
+
+    @Operation(description = "Deletes a checklist item")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Item deleted"),
+            @ApiResponse(responseCode = "422", description = "Provided checklist item guid cannot be empty or null",
+                    content = @Content(schema = @Schema(anyOf = {ExceptionalResponse.class}))),
+            @ApiResponse(responseCode = "404", description = "Provided checklist item guid does not exist",
+                    content = @Content(schema = @Schema(anyOf = {ExceptionalResponse.class})))
+    })
+    @DeleteMapping(value="{guid}")
+    public ResponseEntity<Void> deleteChecklistItem(@PathVariable String guid){
+        this.checklistItemService.deleteChecklistItem(guid);
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    }
+
+    @Operation(description = "Updates a checklist item")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Item deleted"),
+            @ApiResponse(responseCode = "404", description = "Provided checklist item guid does not exist",
+                    content = @Content(schema = @Schema(anyOf = {ExceptionalResponse.class})))
+    })
+    @PatchMapping(value="{guid}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Void> updateCompletedStatus(@PathVariable String guid, @RequestBody UpdateStatusDTO status){
+        this.checklistItemService.updateIsCompleteStatus(guid, status.isComplete);
+        return new ResponseEntity<>(HttpStatus.ACCEPTED);
+    }
+}

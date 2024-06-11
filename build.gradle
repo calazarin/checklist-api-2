@@ -1,0 +1,32 @@
+plugins {
+	id 'java'
+	id 'idea'
+	id 'org.springframework.boot' version '3.2.5'
+	id 'io.spring.dependency-management' version '1.1.4'
+}
+
+group = 'com.learning.springboot'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	sourceCompatibility = '17'
+}
+
+configurations {
+	compileOnly {
+		extendsFrom annotationProcessor
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+if (!hasProperty('buildProfile')) ext.buildProfile = 'local'
+
+apply from: "profile-${buildProfile}.gradle"
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+
